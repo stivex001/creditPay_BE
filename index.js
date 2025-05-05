@@ -15,7 +15,10 @@ mongoose
   .connect(config.mongoURI)
   .then(() => console.log("MongoDB Connected"))
   .catch((err) => console.error("Couldn't connect to MongoDB:", err));
-// mongoose.connection.on('connected', () => console.log('Connected to MongoDB'));
+
+const routes = require("./routes/router");
+
+app.use("/api", routes);
 
 const PORT = config.port;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
