@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 const User = require("../model/user");
 const logger = require("../utils/logger");
 const nodemailer = require("nodemailer");
+const config = require("../config/config");
 
 const generateOTP = () => {
   // Generate a random 4-digit code as string
@@ -81,6 +82,45 @@ exports.registerUser = async (req, res) => {
     });
   } catch (error) {
     logger.error(`User registration error: ${error?.message}`, {
+      error,
+    });
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.login = async (req, res) => {
+  try {
+    const { email, phoneNumber, password } = req.body;
+    const login = email || phoneNumber;
+    const user = await User.findOne({
+      $or: [{ email: login }, { phoneNumber: login }],
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(404).json({ error: "Invalid credentials" });
+
+    const token = jwt.sign({ id: user._id }, config.jwtSecret, {
+      expiresIn: "1h",
+    });
+    res.json({
+      message: "User login successfully",
+      token: token,
+      user: {
+        _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phoneNumber: user.phoneNumber,
+       
+      },
+    });
+  } catch (error) {
+    console.log(error)
+    logger.error(`User login error: ${error.message}`, {
       error,
     });
     res.status(500).json({ error: error.message });
