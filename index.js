@@ -4,6 +4,7 @@ const cors = require("cors");
 const app = express();
 const config = require("./config/config");
 require("dotenv").config();
+const routes = require("./routes/router");
 
 // Middleware configuration
 app.use(express.json());
@@ -16,7 +17,7 @@ mongoose
   .then(() => console.log("MongoDB Connected"))
   .catch((err) => console.error("Couldn't connect to MongoDB:", err));
 
-const routes = require("./routes/router");
+
 
 app.use("/api", routes);
 

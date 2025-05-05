@@ -2,10 +2,33 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const User = require("../model/user");
 const logger = require("../utils/logger");
+const nodemailer = require("nodemailer");
 
 const generateOTP = () => {
   // Generate a random 4-digit code as string
   return Math.floor(1000 + Math.random() * 9000).toString();
+};
+
+const sendOTPEmail = async (toEmail, otp) => {
+  // Create a transporter using environment variables
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: process.env.SMTP_PORT,
+    secure: process.env.SMTP_SECURE === "true",
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+
+  const mailOptions = {
+    from: process.env.FROM_EMAIL,
+    to: toEmail,
+    subject: "Your OTP Code for Email Verification",
+    text: `Your OTP code is ${otp}. It will expire in 15 minutes.`,
+  };
+
+  await transporter.sendMail(mailOptions);
 };
 
 exports.registerUser = async (req, res) => {
@@ -57,7 +80,7 @@ exports.registerUser = async (req, res) => {
       userData,
     });
   } catch (error) {
-    logger.error(`User registration error: ${error.message}`, {
+    logger.error(`User registration error: ${error?.message}`, {
       error,
     });
     res.status(500).json({ error: error.message });
