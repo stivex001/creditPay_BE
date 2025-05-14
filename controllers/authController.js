@@ -115,14 +115,126 @@ exports.login = async (req, res) => {
         lastName: user.lastName,
         email: user.email,
         phoneNumber: user.phoneNumber,
-       
       },
     });
   } catch (error) {
-    console.log(error)
+    console.log(error);
     logger.error(`User login error: ${error.message}`, {
       error,
     });
     res.status(500).json({ error: error.message });
+  }
+};
+
+exports.verifyOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    // Find user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Check if already verified
+    if (user.isVerified) {
+      return res.status(400).json({ message: "User already verified" });
+    }
+
+    // Check if OTP matches and is not expired
+    if (user.otp !== otp) {
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+    if (user.otpExpires < Date.now()) {
+      return res.status(400).json({ message: "OTP expired" });
+    }
+
+    // Update user's verification status and clear OTP fields
+    user.isVerified = true;
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    await user.save();
+
+    res.status(200).json({ message: "Email verified successfully" });
+  } catch (error) {
+    logger.error(`OTP verification error: ${error.message}`, {
+      error,
+    });
+    console.error("OTP verification error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.changePassword = async (req, res) => {
+  try {
+    const { oldPassword, newPassword, confirmNewPassword } = req.body;
+
+    // Ensure the new passwords match
+    if (newPassword !== confirmNewPassword) {
+      return res.status(400).json({ message: "New passwords do not match" });
+    }
+
+    // Assuming req.user contains the authenticated user
+    const userId = req.user?._id;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Compare the old password with the stored password hash
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Old password is incorrect" });
+    }
+
+    // Update user's password; the pre('save') hook will hash the new password
+    user.password = newPassword;
+    await user.save();
+
+    res.status(200).json({ message: "Password updated successfully" });
+  } catch (error) {
+    logger.error(`Change password endpoint failed: ${error.message}`, {
+      error,
+    });
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.resendOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    // Validate that email is provided
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    // Find the user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // If the user is already verified, there's no need to resend OTP
+    if (user.isVerified) {
+      return res.status(400).json({ message: "User is already verified" });
+    }
+
+    // Generate a new 4-digit OTP and set expiry (15 minutes from now)
+    const otp = generateOTP();
+    user.otp = otp;
+    user.otpExpires = new Date(Date.now() + 15 * 60 * 1000);
+
+    // Save the updated user data
+    await user.save();
+
+    // Send the OTP to the user's email
+    await sendOTPEmail(user.email, otp);
+
+    res.status(200).json({ message: "OTP has been resent" });
+  } catch (error) {
+    logger.error(`Error resending OTP: ${error.message}`, { error });
+    res.status(500).json({ message: error.message });
   }
 };
